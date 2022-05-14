@@ -47,7 +47,14 @@ async function run() {
       const result = await bookingCollection.insertOne(booking);
       return res.send({ success: true, result });
     });
+    app.get("/booking", async (req, res) => {
+      const patient = req.query.patient;
+      const query = { patient: patient };
+      const bookings = await bookingCollection.find(query).toArray();
+      res.send(bookings);
+    });
     /* --------available api here--------- */
+
     app.get("/available", async (req, res) => {
       const date = req.query.date;
 
