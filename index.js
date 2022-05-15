@@ -1,6 +1,7 @@
 /* -----------require area----------- */
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const app = express();
@@ -16,6 +17,22 @@ const client = new MongoClient(uri, {
   useUnifiedTopology: true,
   serverApi: ServerApiVersion.v1,
 });
+
+function verifyJWT(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "UnAuthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, process.env.SECRECT_ACCESS_KEY, function (err, decoded) {
+    if (err) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+}
+
 async function run() {
   try {
     await client.connect();
@@ -25,7 +42,32 @@ async function run() {
     const bookingCollection = client
       .db("doctors_portals")
       .collection("booking");
-    /* -----------API Area----------- */
+    const userCollection = client.db("doctors_portals").collection("users");
+    /* -----------User Api Area----------- */
+    app.get('/user', async (req, res) => {
+      const users = await userCollection.find().toArray()
+      res.send(users)
+    })
+
+    app.put("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const filter = { email: email };
+      const option = { upsert: true };
+      const updatedData = {
+        $set: user,
+      };
+      const result = await userCollection.updateOne(
+        filter,
+        updatedData,
+        option
+      );
+      const token = jwt.sign({ email: email }, process.env.SECRECT_ACCESS_KEY, {
+        expiresIn: "1d",
+      });
+      res.send({ result, token });
+    });
+    /* -----------Services Api Area----------- */
     app.get("/service", async (req, res) => {
       const query = {};
       const cursor = serviceCollection.find(query);
@@ -47,11 +89,17 @@ async function run() {
       const result = await bookingCollection.insertOne(booking);
       return res.send({ success: true, result });
     });
-    app.get("/booking", async (req, res) => {
+
+    app.get("/booking", verifyJWT, async (req, res) => {
       const patient = req.query.patient;
-      const query = { patient: patient };
-      const bookings = await bookingCollection.find(query).toArray();
-      res.send(bookings);
+      const decodedEmail = req.decoded.email;
+      if (patient === decodedEmail) {
+        const query = { patient: patient };
+        const bookings = await bookingCollection.find(query).toArray();
+        return res.send(bookings);
+      } else {
+        return res.status(403).send({ message: "forbidden access" });
+      }
     });
     /* --------available api here--------- */
 
