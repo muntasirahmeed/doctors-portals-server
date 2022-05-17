@@ -43,6 +43,21 @@ async function run() {
       .db("doctors_portals")
       .collection("booking");
     const userCollection = client.db("doctors_portals").collection("users");
+    const doctorsCollection = client
+      .db("doctors_portals")
+      .collection("doctors");
+    //  middle werar for admin
+    const verifyAdmin = async (req, res, next) => {
+      const requester = req.decoded.email;
+      const requesterAccount = await userCollection.findOne({
+        email: requester,
+      });
+      if (requesterAccount.role === "admin") {
+        next();
+      } else {
+        return res.status(403).send({ message: "Forbidded" });
+      }
+    };
     /* -----------User Api Area----------- */
     app.get("/user", verifyJWT, async (req, res) => {
       const users = await userCollection.find().toArray();
@@ -56,22 +71,14 @@ async function run() {
       res.send({ admin: isAdmin });
     });
 
-    app.put("/user/admin/:email", verifyJWT, async (req, res) => {
+    app.put("/user/admin/:email", verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
-      const requester = req.decoded.email;
-      const requesterAccount = await userCollection.findOne({
-        email: requester,
-      });
-      if (requesterAccount.role === "admin") {
-        const filter = { email: email };
-        const updatedData = {
-          $set: { role: "admin" },
-        };
-        const result = await userCollection.updateOne(filter, updatedData);
-        res.send(result);
-      } else {
-        return res.status(403).send({ message: "Forbidded" });
-      }
+      const filter = { email: email };
+      const updatedData = {
+        $set: { role: "admin" },
+      };
+      const result = await userCollection.updateOne(filter, updatedData);
+      res.send(result);
     });
     app.put("/user/:email", async (req, res) => {
       const email = req.params.email;
@@ -94,7 +101,7 @@ async function run() {
     /* -----------Services Api Area----------- */
     app.get("/service", async (req, res) => {
       const query = {};
-      const cursor = serviceCollection.find(query);
+      const cursor = serviceCollection.find(query).project({ name: 1 });
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -154,6 +161,22 @@ async function run() {
       });
 
       res.send(services);
+    });
+    // * doctors api here
+    app.get("/doctor", async (req, res) => {
+      const doctors = await doctorsCollection.find().toArray();
+      res.send(doctors);
+    });
+    app.post("/doctor", verifyJWT, verifyAdmin, async (req, res) => {
+      const doctor = req.body;
+      const result = await doctorsCollection.insertOne(doctor);
+      res.send(result);
+    });
+    app.delete("/doctor/:email", verifyJWT, verifyAdmin, async (req, res) => {
+      const email = req.params.email
+      const query = {email:email}
+      const result = await doctorsCollection.deleteOne(query);
+      res.send(result);
     });
   } finally {
     //   await client.close();
