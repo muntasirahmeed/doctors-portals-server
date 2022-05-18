@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -132,6 +132,12 @@ async function run() {
         return res.status(403).send({ message: "forbidden access" });
       }
     });
+    app.get("/booking/:id",  async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await bookingCollection.findOne(query);
+      res.send(result);
+    });
     /* --------available api here--------- */
 
     app.get("/available", async (req, res) => {
@@ -162,7 +168,7 @@ async function run() {
 
       res.send(services);
     });
-    // * doctors api here
+    // ! doctors api here
     app.get("/doctor", async (req, res) => {
       const doctors = await doctorsCollection.find().toArray();
       res.send(doctors);
@@ -173,8 +179,8 @@ async function run() {
       res.send(result);
     });
     app.delete("/doctor/:email", verifyJWT, verifyAdmin, async (req, res) => {
-      const email = req.params.email
-      const query = {email:email}
+      const email = req.params.email;
+      const query = { email: email };
       const result = await doctorsCollection.deleteOne(query);
       res.send(result);
     });
